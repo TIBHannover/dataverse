@@ -18,8 +18,6 @@ import java.util.List;
 import static jakarta.ws.rs.core.Response.Status.FORBIDDEN;
 import static jakarta.ws.rs.core.Response.Status.BAD_REQUEST;
 
-import org.apache.commons.lang.StringEscapeUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
@@ -27,14 +25,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 import static jakarta.ws.rs.core.Response.Status.CREATED;
 import static jakarta.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR;
 import static jakarta.ws.rs.core.Response.Status.OK;
 import static jakarta.ws.rs.core.Response.Status.UNAUTHORIZED;
-import static org.apache.http.Consts.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -910,82 +906,5 @@ public class AdminIT {
         Response toggleSuperuser = UtilIT.setSuperuserStatus(username, status);
         toggleSuperuser.then().assertThat()
                 .statusCode(OK.getStatusCode());
-    }
-
-
-    @Test
-    public void mergeLanguages() {
-        HashMap<String, String> citationMap = new HashMap<>();
-        List<String> properties = new ArrayList<>();
-
-        loadFile("scripts/api/data/metadatablocks/citation.tsv", citationMap, properties);
-        loadFile("scripts/api/data/metadatablocks/language_ISO_639.tsv", citationMap, properties);
-
-        AtomicInteger displayOrder = new AtomicInteger();
-        try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter("scripts/api/data/metadatablocks/full.tsv",UTF_8));
-            citationMap.values().stream().sorted().forEach(s -> {
-                try {
-                    if (!s.contains("Not applicable")) {
-                        writer.write("\tlanguage\t"+s.replace("{#}", String.valueOf(displayOrder.getAndIncrement()))+"\n");
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            });
-            writer.write("\tlanguage\t"+"Not applicable\t\t{#}".replace("{#}", String.valueOf(displayOrder.getAndIncrement()))+"\n");
-            writer.flush();
-            BufferedWriter writer2 = new BufferedWriter(new FileWriter("scripts/api/data/metadatablocks/full.properties",UTF_8));
-            properties.stream().sorted().forEach(s -> {
-                try {
-                    writer2.write("controlledvocabulary.language." + s + "\n");
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            });
-            writer2.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-    private void loadFile(String fileName, Map<String, String> citationMap, List<String> properties) {
-        String line;
-        boolean isCV = false;
-        try (BufferedReader reader = new BufferedReader(new FileReader(fileName))) {
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("#controlledVocabulary")) {
-                    isCV = true;
-                }
-                if (isCV && line.startsWith("\tlanguage")) {
-                    String[] values = line.split("\t");
-                    if (values.length > 2) {
-                        String name = values[2].replace("\"", "");
-                        String key = values[3];
-                        String value = name + "\t" + key + "\t{#}";
-                        // add altValues
-                        for (int i = 5; i < values.length; i++) {
-                            if (!values[i].isBlank()) {
-                                value = value + "\t" + values[i];
-                            }
-                        }
-                        if (citationMap.containsKey(key)) {
-                            String[] newValues = value.split("\t");
-                            value = citationMap.get(key);
-                            List<String> origValues = List.of(value.split("\t"));
-                            for (int i = 3; i < newValues.length; i++) {
-                                if (!newValues[i].isBlank() && !origValues.contains(newValues[i])) {
-                                    value = value + "\t" + newValues[i];
-                                }
-                            }
-                        } else {
-                            properties.add(StringUtils.stripAccents(name.trim().toLowerCase().replace(" ", "_")) + "=" + StringEscapeUtils.escapeJava(name));
-                        }
-                        citationMap.put(key, value);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
     }
 }
